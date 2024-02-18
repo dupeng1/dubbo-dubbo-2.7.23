@@ -29,6 +29,10 @@ import org.apache.dubbo.remoting.transport.ChannelHandlerAdapter;
 /**
  * Exchanger facade. (API, Static, ThreadSafe)
  */
+
+/**
+ * Exchanger门面类
+ */
 public class Exchangers {
 
     static {
@@ -67,6 +71,7 @@ public class Exchangers {
             throw new IllegalArgumentException("handler == null");
         }
         url = url.addParameterIfAbsent(Constants.CODEC_KEY, "exchange");
+        //getExchanger(url)得到的是HeaderExchanger
         return getExchanger(url).bind(url, handler);
     }
 

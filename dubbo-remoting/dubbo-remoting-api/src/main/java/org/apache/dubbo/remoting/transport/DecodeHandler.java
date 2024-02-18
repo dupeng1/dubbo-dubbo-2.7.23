@@ -26,6 +26,11 @@ import org.apache.dubbo.remoting.RemotingException;
 import org.apache.dubbo.remoting.exchange.Request;
 import org.apache.dubbo.remoting.exchange.Response;
 
+/**
+ * 1、对Request Message和Response Message做解码操作，解码完成后才能给HeaderExchangeHandler使用
+ * 2、主要包含了一些解码逻辑，存在的意义就是保证请求或响应对象可在线程池中被解码，解码完毕后，完全解码后的Request对象回继续向后传递
+ * 3、下一个handler是HeaderExchangeHandler
+ */
 public class DecodeHandler extends AbstractChannelHandlerDelegate {
 
     private static final Logger log = LoggerFactory.getLogger(DecodeHandler.class);
@@ -37,23 +42,29 @@ public class DecodeHandler extends AbstractChannelHandlerDelegate {
     @Override
     public void received(Channel channel, Object message) throws RemotingException {
         if (message instanceof Decodeable) {
+            //对Decodeable接口实现类对象进行解码
             decode(message);
         }
 
         if (message instanceof Request) {
+            //对Request的data字段进行解码
             decode(((Request) message).getData());
         }
 
         if (message instanceof Response) {
+            //对Request的result字段进行解码
             decode(((Response) message).getResult());
         }
-
+        //执行后续逻辑
         handler.received(channel, message);
     }
 
     private void decode(Object message) {
+        //Decodeable接口目前有两个实现类
+        //分别为DecodeableRpcInvocation、DecodeableRpcResult
         if (message instanceof Decodeable) {
             try {
+                // 执行解码逻辑
                 ((Decodeable) message).decode();
                 if (log.isDebugEnabled()) {
                     log.debug("Decode decodeable message " + message.getClass().getName());

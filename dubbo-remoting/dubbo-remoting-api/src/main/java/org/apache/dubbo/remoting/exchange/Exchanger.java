@@ -29,6 +29,11 @@ import org.apache.dubbo.remoting.exchange.support.header.HeaderExchanger;
  * <a href="http://en.wikipedia.org/wiki/Message_Exchange_Pattern">Message Exchange Pattern</a>
  * <a href="http://en.wikipedia.org/wiki/Request-response">Request-Response</a>
  */
+
+/**
+ * 信息交换层：封装请求响应模式，同步转异步
+ * 1、扩展接口为Exchanger，对应的扩展实现有HeaderExchanger
+ */
 @SPI(HeaderExchanger.NAME)
 public interface Exchanger {
 

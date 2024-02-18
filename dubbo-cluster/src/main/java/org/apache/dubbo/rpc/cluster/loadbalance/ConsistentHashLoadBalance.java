@@ -61,6 +61,7 @@ public class ConsistentHashLoadBalance extends AbstractLoadBalance {
             selectors.put(key, new ConsistentHashSelector<T>(invokers, methodName, invokersHashCode));
             selector = (ConsistentHashSelector<T>) selectors.get(key);
         }
+        //一致性Hash策略主要是ConsistentHashSelector类实现的
         return selector.select(invocation);
     }
 
@@ -107,10 +108,12 @@ public class ConsistentHashLoadBalance extends AbstractLoadBalance {
          */
         private static final double OVERLOAD_RATIO_THREAD = 1.5F;
 
+        //根据所有服务提供者的invoker列表，生成从Hash环上的节点到服务提供者机器的映射关系，并存放到virtualInvokers中
         ConsistentHashSelector(List<Invoker<T>> invokers, String methodName, int identityHashCode) {
             this.virtualInvokers = new TreeMap<Long, Invoker<T>>();
             this.identityHashCode = identityHashCode;
             URL url = invokers.get(0).getUrl();
+            //获取设置的虚拟节点个数，默认为160个
             this.replicaNumber = url.getMethodParameter(methodName, HASH_NODES, 160);
             String[] index = COMMA_SPLIT_PATTERN.split(url.getMethodParameter(methodName, HASH_ARGUMENTS, "0"));
             argumentIndex = new int[index.length];
@@ -134,8 +137,11 @@ public class ConsistentHashLoadBalance extends AbstractLoadBalance {
         }
 
         public Invoker<T> select(Invocation invocation) {
+            //1、获取参与一致性Hash算法的key，默认是第一个参数，消费端可以设置hash.arguments指定哪几个参数参与计算
             String key = toKey(invocation.getArguments());
+            //2、根据具体算法计算该key对应的md5值
             byte[] digest = Bytes.getMD5(key);
+            //3、计算该key对应Hash环上哪一个节点，并选择该点对应的服务提供者
             return selectForKey(hash(digest, 0));
         }
 

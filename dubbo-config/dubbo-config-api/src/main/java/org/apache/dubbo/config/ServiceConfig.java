@@ -98,6 +98,33 @@ import static org.apache.dubbo.rpc.Constants.SCOPE_REMOTE;
 import static org.apache.dubbo.rpc.Constants.TOKEN_KEY;
 import static org.apache.dubbo.rpc.cluster.Constants.EXPORT_KEY;
 
+/**
+ *
+ * @param <T>
+ */
+
+/**
+ *         ServiceConfig serviceConfig = new ServiceConfig();
+ *         //设置应用程序配置
+ *         serviceConfig.setApplication(new ApplicationConfig("first-dubbo-provider"));
+ *         //设置服务注册中心信息，可知服务注册中心使用了Zookeeper，并且zookeeper的地址为127.0.0.1，启动端口为2181，服务提供方会将服务注册到该中心
+ *         RegistryConfig registryConfig = new RegistryConfig("zookeeper://127.0.0.1:2181");
+ *         serviceConfig.setRegistry(registryConfig);
+ *         //设置接口与实现类
+ *         serviceConfig.setInterface("");
+ *         serviceConfig.setRef(null);
+ *         //设置服务分组与版本，在Dubbo中“服务接口+服务分组+服务版本”唯一确定一个服务，同一个服务接口可以有不同的版本以便服务升级，另外每个服务接口可以属于不同分组，
+ *         //所以当调用方消费服务时一定要设置正确的分组与版本
+ *         serviceConfig.setVersion("1.0.0");
+ *         serviceConfig.setGroup("dubbo");
+ *         //设置线程池策略
+ *         Map<String, String> parameters = new HashMap<>();
+ *         parameters.put("threadpool","mythreadpool");
+ *         serviceConfig.setParameters(parameters);
+ *         //导出服务，启动NettyServer监听链接请求，并将服务注册到服务注册中心
+ *         serviceConfig.export();
+ * @param <T>
+ */
 public class ServiceConfig<T> extends ServiceConfigBase<T> {
 
     private static final long serialVersionUID = -412700146501624375L;
@@ -203,6 +230,9 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
         dispatch(new ServiceConfigUnexportedEvent(this));
     }
 
+    /**
+     * 激活发布服务
+     */
     @Override
     public synchronized void export() {
         if (bootstrap == null) {
@@ -221,10 +251,12 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
         serviceMetadata.setTarget(getRef());
         serviceMetadata.generateServiceKey();
 
+        //是否需要导出服务
         if (!shouldExport()) {
             return;
         }
 
+        //这里是延迟发布
         if (shouldDelay()) {
             DELAY_EXPORT_EXECUTOR.schedule(() -> {
                 try {
@@ -235,6 +267,7 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
                 }
             }, getDelay(), TimeUnit.MILLISECONDS);
         } else {
+            //直接发布
             doExport();
         }
 
@@ -327,6 +360,7 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
                 serviceMetadata
         );
 
+        //加载所有的服务注册中心对象，一个服务可以被注册到多个服务注册中心
         List<URL> registryURLs = ConfigValidationUtils.loadRegistries(this, true);
 
         int protocolConfigNum = protocols.size();
@@ -341,6 +375,7 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
     }
 
     private void doExportUrlsFor1Protocol(ProtocolConfig protocolConfig, List<URL> registryURLs, int protocolConfigNum) {
+        //1、解析MethodConfig配置
         String name = protocolConfig.getName();
         if (StringUtils.isEmpty(name)) {
             name = DUBBO;
@@ -424,10 +459,12 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
             } // end of methods for
         }
 
+        //2、如果是泛型调用，设置泛型类型
         if (ProtocolUtils.isGeneric(generic)) {
             map.put(GENERIC_KEY, generic);
             map.put(METHODS_KEY, ANY_VALUE);
         } else {
+            //3、正常调用设置拼接URL的参数
             String revision = Version.getVersion(interfaceClass, version);
             if (revision != null && revision.length() > 0) {
                 map.put(REVISION_KEY, revision);
@@ -460,8 +497,10 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
         serviceMetadata.getAttachments().putAll(map);
 
         // export service
+        //4、拼接URL对象
         String host = findConfigedHosts(protocolConfig, registryURLs, map);
         Integer port = findConfigedPorts(protocolConfig, name, map, protocolConfigNum);
+        //把参数封装为URL
         URL url = new URL(name, host, port, getContextPath(protocolConfig).map(p -> p + "/" + path).orElse(path), map);
 
         // You can customize Configurator to append extra parameters
@@ -471,16 +510,21 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
                     .getExtension(url.getProtocol()).getConfigurator(url).configure(url);
         }
 
+        //5、导出服务，本地服务、远程服务
         String scope = url.getParameter(SCOPE_KEY);
         // don't export when none is configured
+        //如果scope为none则不导出服务
         if (!SCOPE_NONE.equalsIgnoreCase(scope)) {
 
             // export to local if the config is not remote (export to remote only when config is remote)
+            //5.1、如果scope不是remote，则导出本地服务
             if (!SCOPE_REMOTE.equalsIgnoreCase(scope)) {
                 exportLocal(url);
             }
             // export to remote if the config is not local (export to local only when config is local)
+            //5.2、如果scope不是local，则导出远程服务
             if (!SCOPE_LOCAL.equalsIgnoreCase(scope)) {
+                //5.2.1、如果有服务注册中心地址
                 if (CollectionUtils.isNotEmpty(registryURLs)) {
                     for (URL registryURL : registryURLs) {
                         if (SERVICE_REGISTRY_PROTOCOL.equals(registryURL.getProtocol())) {
@@ -511,10 +555,17 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
                             registryURL = registryURL.addParameter(PROXY_KEY, proxy);
                         }
 
+                        //ProxyFactory的适配器类ProxyFactory$Adaptive，getInvoker方法内部根据URL的proxy类型选择具体的代理工厂
+                        //这里默认proxy类型为javassist，所以又调用了JavassistProxyFactory的getInvoker（）方法获取了代理类
                         Invoker<?> invoker = PROXY_FACTORY.getInvoker(ref, (Class) interfaceClass,
                                 registryURL.addParameterAndEncoded(EXPORT_KEY, url.toFullString()));
                         DelegateProviderMetaDataInvoker wrapperInvoker = new DelegateProviderMetaDataInvoker(invoker, this);
 
+                        //1、Protocol的适配器类Protocol$Adaptive，export方法
+                        // 如果为远程服务暴露，根据URL中Protocol的类型为registry，会选择Protocol的实现类RegistryProtocol
+                        // 如果为本地服务暴露，根据URL中rotocol的类型为injvm，会选择Protocol的实现类InjvmProtocol
+                        //2、由于Dubbo SPI的扩展点使用了Wrapper自动增强，这里就使用了ProtocolFilterWrapper、ProtocolListenerWrapper、
+                        // QosProtocolWrapper对其进行了增强，所以要一层层调用才会调用到RegistryProtocol的export方法
                         Exporter<?> exporter = PROTOCOL.export(wrapperInvoker);
                         exporters.add(exporter);
                     }
@@ -522,13 +573,15 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
                     if (logger.isInfoEnabled()) {
                         logger.info("Export dubbo service " + interfaceClass.getName() + " to url " + url);
                     }
+                    //5.2.2、直连方式
                     Invoker<?> invoker = PROXY_FACTORY.getInvoker(ref, (Class) interfaceClass, url);
                     DelegateProviderMetaDataInvoker wrapperInvoker = new DelegateProviderMetaDataInvoker(invoker, this);
 
                     Exporter<?> exporter = PROTOCOL.export(wrapperInvoker);
                     exporters.add(exporter);
                 }
-
+                //5.2.3、元数据存储
+                //如果使用MetadataReportConfig设置了元数据存储信息，将元数据保存到指定配置中心
                 MetadataUtils.publishServiceDefinition(url);
             }
         }
@@ -540,13 +593,20 @@ public class ServiceConfig<T> extends ServiceConfigBase<T> {
      * always export injvm
      */
     private void exportLocal(URL url) {
+        //创建一个新的URL对象，并且设置协议为injvm，然后设置Host为127.0.0.1，端口为0
         URL local = URLBuilder.from(url)
                 .setProtocol(LOCAL_PROTOCOL)
                 .setHost(LOCALHOST_VALUE)
                 .setPort(0)
                 .build();
+        //导出服务
+        //1、调用proxyFactory.getInvoker获取代理的对象，其中proxyFactory也是适配器类，默认proxyFactory扩展实现是JavassistProxyFactory，所以
+        //这里调用JavassistProxyFactory的getInvoker方法来获取代理服务实现类的invoker类
+        //2、然后，调用protocol.export导出服务，其中的protocol也是扩展接口，这里与远程服务暴露不同之处在于协议类型为injvm，所以会加载扩展实现类InjvmProtocol
+        //InjvmProtocol也使用Wrapper类被增强了，并且在ProtocolFilterWrapper内也建立了Filter链
         Exporter<?> exporter = PROTOCOL.export(
                 PROXY_FACTORY.getInvoker(ref, (Class) interfaceClass, local));
+        //保存导出服务到列表
         exporters.add(exporter);
         logger.info("Export dubbo service " + interfaceClass.getName() + " to local registry url : " + local);
     }

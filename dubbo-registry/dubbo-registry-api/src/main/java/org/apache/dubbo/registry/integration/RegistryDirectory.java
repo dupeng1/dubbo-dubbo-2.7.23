@@ -89,11 +89,13 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> {
         super(serviceType, url);
     }
 
+    //订阅服务提供者服务
     @Override
     public void subscribe(URL url) {
         setConsumerUrl(url);
         CONSUMER_CONFIGURATION_LISTENER.addNotifyListener(this);
         referenceConfigurationListener = new ReferenceConfigurationListener(this, url);
+        //ZookeeperRegistry
         registry.subscribe(url, this);
     }
 
@@ -107,19 +109,21 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> {
 
     @Override
     public synchronized void notify(List<URL> urls) {
+        //对不同类别的元数据进行分类
         Map<String, List<URL>> categoryUrls = urls.stream()
                 .filter(Objects::nonNull)
                 .filter(this::isValidCategory)
                 .filter(this::isNotCompatibleFor26x)
                 .collect(Collectors.groupingBy(this::judgeCategory));
-
+        //配置信息，比如服务降级信息
         List<URL> configuratorURLs = categoryUrls.getOrDefault(CONFIGURATORS_CATEGORY, Collections.emptyList());
         this.configurators = Configurator.toConfigurators(configuratorURLs).orElse(this.configurators);
-
+        //路由信息收集并保存
         List<URL> routerURLs = categoryUrls.getOrDefault(ROUTERS_CATEGORY, Collections.emptyList());
         toRouters(routerURLs).ifPresent(this::addRouters);
 
         // providers
+        //服务提供者信息
         List<URL> providerURLs = categoryUrls.getOrDefault(PROVIDERS_CATEGORY, Collections.emptyList());
         /**
          * 3.x added for extend URL address
@@ -131,6 +135,7 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> {
                 providerURLs = addressListener.notify(providerURLs, getConsumerUrl(), this);
             }
         }
+        //刷新Invoker列表，根据获取的最新的服务提供者URL地址，将其转换为具体的Invoker列表，也就是说每个提供者的URL会被转换为一个Invoker
         refreshOverrideAndInvoker(providerURLs);
     }
 
@@ -148,7 +153,9 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> {
     // RefreshOverrideAndInvoker will be executed by registryCenter and configCenter, so it should be synchronized.
     private synchronized void refreshOverrideAndInvoker(List<URL> urls) {
         // mock zookeeper://xxx?mock=return null
+        //根据服务降级信息，重写URL（也就是把mock=return null等信息拼接到URL中），并保存到overrideDirectoryUrl中
         overrideDirectoryUrl();
+        //刷新Invoker列表
         refreshInvoker(urls);
     }
 
@@ -166,15 +173,17 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> {
      */
     private void refreshInvoker(List<URL> invokerUrls) {
         Assert.notNull(invokerUrls, "invokerUrls should not be null");
-
+        //只有一个服务提供者时
         if (invokerUrls.size() == 1
                 && invokerUrls.get(0) != null
                 && EMPTY_PROTOCOL.equals(invokerUrls.get(0).getProtocol())) {
             this.forbidden = true; // Forbid to access
             this.invokers = Collections.emptyList();
             routerChain.setInvokers(this.invokers);
+            //关闭所有Invokers
             destroyAllInvokers(); // Close all invokers
         } else {
+            //多个提供者时
             Map<URL, Invoker<T>> oldUrlInvokerMap = this.urlInvokerMap; // local reference
             if (invokerUrls == Collections.<URL>emptyList()) {
                 invokerUrls = new ArrayList<>();
@@ -189,6 +198,7 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> {
                 return;
             }
             this.forbidden = false; // Allow to access
+            //转换URL为Invoker，把服务提供者所有的URL信息转换为了invoker列表
             Map<URL, Invoker<T>> newUrlInvokerMap = toInvokers(invokerUrls);// Translate url list to Invoker map
 
             /**
@@ -208,11 +218,14 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> {
             List<Invoker<T>> newInvokers = Collections.unmodifiableList(new ArrayList<>(newUrlInvokerMap.values()));
             // pre-route and build cache, notice that route cache should build on original Invoker list.
             // toMergeMethodInvokerMap() will wrap some invokers having different groups, those wrapped invokers not should be routed.
+            //设置newInvokers到routerChain，保存了可用服务提供者对应的Invoker列表和路由规则信息
+            //当服务消费方的集群容错策略要获取可用服务提供者对应的Invoker列表时，会调用RouteChain的route方法，其内部根据路由规则信息和Invokers列表来提供服务
             routerChain.setInvokers(newInvokers);
             this.invokers = multiGroup ? toMergeInvokerList(newInvokers) : newInvokers;
             this.urlInvokerMap = newUrlInvokerMap;
 
             // Close the unused Invoker
+            //关闭无用的Invokers
             destroyUnusedInvokers(oldUrlInvokerMap, newUrlInvokerMap);
 
         }
@@ -327,6 +340,10 @@ public class RegistryDirectory<T> extends DynamicDirectory<T> {
                         enabled = url.getParameter(ENABLED_KEY, true);
                     }
                     if (enabled) {
+                        //这里调用Dubbo协议转换服务到Invoker，服务接口转换到Invoker对象是通过protocol.refer(serviceType, url)来完成的
+                        //这里的protocol对象也是Protocol扩展接口的适配器对象，所以调用protocol.refer实际上是调用适配器Protocol$Adaptive的refer方法
+                        //在URL中，协议默认为是Dubbo，所以适配器里调用的应该是DubboProtocol的refer方法
+                        //Dubbo使用了ProtocolListenerWrapper、ProtocolFilterWrapper 等类对DubboProtocol进行了功能增强
                         invoker = new InvokerDelegate<>(protocol.refer(serviceType, url), url, providerUrl);
                     }
                 } catch (Throwable t) {

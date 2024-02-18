@@ -88,13 +88,20 @@ public class RoundRobinLoadBalance extends AbstractLoadBalance {
 
     @Override
     protected <T> Invoker<T> doSelect(List<Invoker<T>> invokers, URL url, Invocation invocation) {
+        //获取调用方法的key，比如对于调用com.books.dubbo.demo.api.GreetingService接口的String sayHello（String name）方法来说，
+        //key为dubbo/com.books.dubbo.demo.api.GreetingService：1.0.0.sayHello
         String key = invokers.get(0).getUrl().getServiceKey() + "." + invocation.getMethodName();
+        //获取该调用方法对应的每个服务提供者的WeightedRoundRobin对象组成的map
+        //methodWeightMap是一个Map，其中key就是上面计算的值。value是一个Map，其中key是每个服务提供者机器IP组成的方法的key
+        //例如dubbo：//30.10.75.231：20880/com.books.dubbo.demo.api.GreetingService
+        //对应的value为WeightedRoundRobin对象，WeightedRoundRobin记录了当前提供者的权重和最后一次更新时间
         ConcurrentMap<String, WeightedRoundRobin> map = methodWeightMap.computeIfAbsent(key, k -> new ConcurrentHashMap<>());
         int totalWeight = 0;
         long maxCurrent = Long.MIN_VALUE;
         long now = System.currentTimeMillis();
         Invoker<T> selectedInvoker = null;
         WeightedRoundRobin selectedWRR = null;
+        //遍历所有提供者，计算总权重和权重最大的提供者
         for (Invoker<T> invoker : invokers) {
             String identifyString = invoker.getUrl().toIdentityString();
             int weight = getWeight(invoker, invocation);
@@ -106,6 +113,7 @@ public class RoundRobinLoadBalance extends AbstractLoadBalance {
 
             if (weight != weightedRoundRobin.getWeight()) {
                 //weight changed
+                //权重变化
                 weightedRoundRobin.setWeight(weight);
             }
             long cur = weightedRoundRobin.increaseCurrent();
@@ -117,7 +125,10 @@ public class RoundRobinLoadBalance extends AbstractLoadBalance {
             }
             totalWeight += weight;
         }
+        //更新Map
         if (invokers.size() != map.size()) {
+            //更新Map，移除过期的，RECYCLE_PERIOD是清理周期，如果服务提供者耗时RECYCLE_PERIOD还没有更新自己的WeightedRoundRobin对象，
+            //则会被自动回收；
             map.entrySet().removeIf(item -> now - item.getValue().getLastUpdate() > RECYCLE_PERIOD);
         }
         if (selectedInvoker != null) {

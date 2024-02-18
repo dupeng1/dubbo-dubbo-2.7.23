@@ -100,12 +100,15 @@ final public class MockInvoker<T> implements Invoker<T> {
             ((RpcInvocation) invocation).setInvoker(this);
         }
 
+        //mock类型
         String mock = getUrl().getMethodParameter(invocation.getMethodName(),MOCK_KEY);
 
         if (StringUtils.isBlank(mock)) {
             throw new RpcException(new IllegalAccessException("mock can not be null. url :" + url));
         }
+        //格式化类型
         mock = normalizeMock(URL.decode(mock));
+        //根据不同类型，返回不同mock值
         if (mock.startsWith(RETURN_PREFIX)) {
             mock = mock.substring(RETURN_PREFIX.length()).trim();
             try {
@@ -162,11 +165,12 @@ final public class MockInvoker<T> implements Invoker<T> {
         final boolean isDefault = ConfigUtils.isDefault(mock);
         // convert to actual mock service name
         String mockService = isDefault ? serviceType.getName() + "Mock" : mock;
+        //缓存存在返回
         Invoker<T> invoker = (Invoker<T>) MOCK_MAP.get(mockService);
         if (invoker != null) {
             return invoker;
         }
-
+        //不存在则创建代理，并缓存
         T mockObject = (T) getMockObject(mock, serviceType);
         invoker = PROXY_FACTORY.getInvoker(mockObject, serviceType, url);
         if (MOCK_MAP.size() < 10000) {
@@ -177,11 +181,13 @@ final public class MockInvoker<T> implements Invoker<T> {
 
     @SuppressWarnings("unchecked")
     public static Object getMockObject(String mockService, Class serviceType) {
+        //如果mock类型为true或者default，mockService被设置为接口名称加上Mock
+        //例如，如果接口为com.books.dubbo.demo.api.GreetingServic并且mock设置为true，则这里的mockService就是com.books.dubbo.demo.api.GreetingServicMock
         boolean isDefault = ConfigUtils.isDefault(mockService);
         if (isDefault) {
             mockService = serviceType.getName() + "Mock";
         }
-
+        //反射加载字节码创建Class对象
         Class<?> mockClass;
         try {
             mockClass = ReflectUtils.forName(mockService);
@@ -204,6 +210,7 @@ final public class MockInvoker<T> implements Invoker<T> {
                     " not implement interface " + serviceType.getName());
         }
 
+        //创建实例
         try {
             return mockClass.newInstance();
         } catch (InstantiationException e) {

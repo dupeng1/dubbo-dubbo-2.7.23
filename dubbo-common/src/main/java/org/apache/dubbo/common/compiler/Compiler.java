@@ -22,6 +22,11 @@ import org.apache.dubbo.common.extension.SPI;
 /**
  * Compiler. (SPI, Singleton, ThreadSafe)
  */
+
+/**
+ * 动态编译技术
+ * 1、Compiler的实现有JavassistCompiler（默认实现）和JdkCompiler
+ */
 @SPI(JavassistCompiler.NAME)
 public interface Compiler {
 

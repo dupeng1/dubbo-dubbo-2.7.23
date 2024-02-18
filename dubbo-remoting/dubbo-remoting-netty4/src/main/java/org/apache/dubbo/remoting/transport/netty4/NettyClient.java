@@ -89,7 +89,9 @@ public class NettyClient extends AbstractClient {
      */
     @Override
     protected void doOpen() throws Throwable {
+        //创建业务handler
         final NettyClientHandler nettyClientHandler = createNettyClientHandler();
+        //创建启动器并配置
         bootstrap = new Bootstrap();
         initBootstrap(nettyClientHandler);
     }
@@ -107,6 +109,7 @@ public class NettyClient extends AbstractClient {
                 .channel(socketChannelClass());
 
         bootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, Math.max(DEFAULT_CONNECT_TIMEOUT, getConnectTimeout()));
+        //添加handler到链接的管线
         bootstrap.handler(new ChannelInitializer<SocketChannel>() {
 
             @Override
@@ -117,12 +120,13 @@ public class NettyClient extends AbstractClient {
                     ch.pipeline().addLast("negotiation", SslHandlerInitializer.sslClientHandler(getUrl(), nettyClientHandler));
                 }
 
+                //获取了该编解码器并封装到NettyCodecAdapter适配器中，然后把编解码器设置到链接channel的管线中
                 NettyCodecAdapter adapter = new NettyCodecAdapter(getCodec(), getUrl(), NettyClient.this);
                 ch.pipeline()//.addLast("logging",new LoggingHandler(LogLevel.INFO))//for debug
-                        .addLast("decoder", adapter.getDecoder())
-                        .addLast("encoder", adapter.getEncoder())
-                        .addLast("client-idle-handler", new IdleStateHandler(heartbeatInterval, 0, 0, MILLISECONDS))
-                        .addLast("handler", nettyClientHandler);
+                        .addLast("decoder", adapter.getDecoder())//解码器
+                        .addLast("encoder", adapter.getEncoder())//编码器
+                        .addLast("client-idle-handler", new IdleStateHandler(heartbeatInterval, 0, 0, MILLISECONDS))//心跳加检查
+                        .addLast("handler", nettyClientHandler);//框架内部使用的handler
 
                 String socksProxyHost = ConfigUtils.getProperty(SOCKS_PROXY_HOST);
                 if(socksProxyHost != null) {
@@ -137,6 +141,7 @@ public class NettyClient extends AbstractClient {
     @Override
     protected void doConnect() throws Throwable {
         long start = System.currentTimeMillis();
+        //发起链接
         ChannelFuture future = bootstrap.connect(getConnectAddress());
         try {
             boolean ret = future.awaitUninterruptibly(getConnectTimeout(), MILLISECONDS);

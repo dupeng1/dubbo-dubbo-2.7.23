@@ -52,9 +52,11 @@ public abstract class AbstractRegistryFactory implements RegistryFactory {
     private static final Logger LOGGER = LoggerFactory.getLogger(AbstractRegistryFactory.class);
 
     // The lock for the acquisition process of the registry
+    //独占锁
     protected static final ReentrantLock LOCK = new ReentrantLock();
 
     // Registry Collection Map<RegistryAddress, Registry>
+    //缓存
     protected static final Map<String, Registry> REGISTRIES = new HashMap<>();
 
     private static final AtomicBoolean destroyed = new AtomicBoolean(false);
@@ -137,6 +139,7 @@ public abstract class AbstractRegistryFactory implements RegistryFactory {
                 .build();
         String key = createRegistryCacheKey(url);
         // Lock the registry access process to ensure a single instance of the registry
+        //独占锁保证同时只有一个线程实例创建服务注册实例
         LOCK.lock();
         try {
             // double check
@@ -151,6 +154,7 @@ public abstract class AbstractRegistryFactory implements RegistryFactory {
                 return registry;
             }
             //create registry by spi/ioc
+            //创建服务注册中心实例
             registry = createRegistry(url);
             if (registry == null) {
                 throw new IllegalStateException("Can not create registry " + url);
@@ -159,6 +163,7 @@ public abstract class AbstractRegistryFactory implements RegistryFactory {
             return registry;
         } finally {
             // Release the lock
+            //释放锁
             LOCK.unlock();
         }
     }

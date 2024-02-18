@@ -23,6 +23,11 @@ import org.apache.dubbo.common.Node;
  *
  * @see org.apache.dubbo.monitor.MonitorFactory#getMonitor(org.apache.dubbo.common.URL)
  */
+
+/**
+ * 监控层：用来统计RPC调用次数和调用耗时时间
+ * 1、扩展接口为MonitorFactory，对应的实现类为DubboMonitorFactroy
+ */
 public interface Monitor extends Node, MonitorService {
 
 }

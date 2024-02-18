@@ -41,6 +41,12 @@ import static org.apache.dubbo.rpc.Constants.ACTIVES_KEY;
  *
  * @see Filter
  */
+
+/**
+ * 1、消费方限制接口调用的并发数
+ * 2、并发控制的是ProtocolFilterWrapper类创建的Filter链中的ActiveLimitFilter
+ * 3、默认情况下是不会在服务消费端加载到Filter链的，只有当消费端设置了并发活跃数actives属性时才会（设置后actives属性就会出现在URL里）
+ */
 @Activate(group = CONSUMER, value = ACTIVES_KEY)
 public class ActiveLimitFilter implements Filter, Filter.Listener {
 
@@ -48,16 +54,22 @@ public class ActiveLimitFilter implements Filter, Filter.Listener {
 
     @Override
     public Result invoke(Invoker<?> invoker, Invocation invocation) throws RpcException {
+        //1、获取URL和调用的方法名称
         URL url = invoker.getUrl();
         String methodName = invocation.getMethodName();
+        //2、获取设置的actives的值（默认为0）
         int max = invoker.getUrl().getMethodParameter(methodName, ACTIVES_KEY, 0);
+        //3、根据URL和方法名称获取对应的状态对象
         final RpcStatus rpcStatus = RpcStatus.getStatus(invoker.getUrl(), invocation.getMethodName());
+        //4、判断是不是超过并发限制
         if (!RpcStatus.beginCount(url, methodName, max)) {
             long timeout = invoker.getUrl().getMethodParameter(invocation.getMethodName(), TIMEOUT_KEY, 0);
             long start = System.currentTimeMillis();
             long remain = timeout;
+            //4.1、超过并发限制则阻塞当前线程timeout时间
             synchronized (rpcStatus) {
                 while (!RpcStatus.beginCount(url, methodName, max)) {
+                    //让当前线程挂起timeout时间，然后当前线程会在timeout时间后再被唤醒，或者当其他线程调用了rpcStatus的notifyAll方法时被唤醒
                     try {
                         rpcStatus.wait(remain);
                     } catch (InterruptedException e) {
@@ -65,6 +77,7 @@ public class ActiveLimitFilter implements Filter, Filter.Listener {
                     }
                     long elapsed = System.currentTimeMillis() - start;
                     remain = timeout - elapsed;
+                    //4.2、超时了还没被唤醒则抛出异常
                     if (remain <= 0) {
                         throw new RpcException(RpcException.LIMIT_EXCEEDED_EXCEPTION,
                                 "Waiting concurrent invoke timeout in client-side for service:  " +

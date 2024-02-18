@@ -24,6 +24,11 @@ import org.apache.dubbo.rpc.cluster.support.wrapper.AbstractCluster;
  * BroadcastCluster
  *
  */
+
+/**
+ * 广播调用
+ * 当消费者调用一个接口方法后，Dubbo Client会逐个调用所有服务提供者，任意一台服务器调用异常则这次调用就标志失败，这种模式通常用于通知所有提供者更新缓存或日志等本地资源信息
+ */
 public class BroadcastCluster extends AbstractCluster {
 
     @Override

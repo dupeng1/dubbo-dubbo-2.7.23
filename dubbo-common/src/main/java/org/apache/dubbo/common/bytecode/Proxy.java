@@ -38,7 +38,6 @@ import static org.apache.dubbo.common.constants.CommonConstants.MAX_PROXY_COUNT;
 /**
  * Proxy.
  */
-
 public abstract class Proxy {
     public static final InvocationHandler RETURN_NULL_INVOKER = (proxy, method, args) -> null;
     public static final InvocationHandler THROW_UNSUPPORTED_INVOKER = new InvocationHandler() {

@@ -34,6 +34,7 @@ public class DirectChannelHandler extends WrappedChannelHandler {
         super(handler, url);
     }
 
+    //
     @Override
     public void received(Channel channel, Object message) throws RemotingException {
         ExecutorService executor = getPreferredExecutorService(message);
@@ -44,6 +45,7 @@ public class DirectChannelHandler extends WrappedChannelHandler {
                 throw new ExecutionException(message, channel, getClass() + " error when process received event .", t);
             }
         } else {
+            //全部在I/O线程处理
             handler.received(channel, message);
         }
     }

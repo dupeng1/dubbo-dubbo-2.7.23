@@ -32,6 +32,12 @@ import java.io.OutputStream;
  *     e.g. &lt;dubbo:protocol serialization="xxx" /&gt;
  * </pre>
  */
+
+/**
+ * 数据序列化层：提供可以复用的一些工具
+ * 1、扩展接口为Serialization，对应的扩展实现有DubboSerialization、FastJsonSerialization、Hessian2Serialization、JavaSerialization等
+ * 2、扩展接口为ThreadPool，对应的扩展实现有FixedThreadPool、CachedThreadPool、LimitedThreadPool等
+ */
 @SPI("hessian2")
 public interface Serialization {
 

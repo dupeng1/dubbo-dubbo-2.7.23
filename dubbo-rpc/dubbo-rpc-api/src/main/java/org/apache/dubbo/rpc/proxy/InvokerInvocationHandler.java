@@ -81,6 +81,7 @@ public class InvokerInvocationHandler implements InvocationHandler {
         } else if (parameterTypes.length == 1 && "equals".equals(methodName)) {
             return invoker.equals(args[0]);
         }
+        //method为调用的方法，args为参数，这个RpcInvocation对象会一直传递，直到发起远程调用
         RpcInvocation rpcInvocation = new RpcInvocation(method, invoker.getInterface().getName(), protocolServiceKey, args);
         String serviceKey = invoker.getUrl().getServiceKey();
         rpcInvocation.setTargetServiceUniqueName(serviceKey);
@@ -93,6 +94,13 @@ public class InvokerInvocationHandler implements InvocationHandler {
             rpcInvocation.put(Constants.METHOD_MODEL, consumerModel.getMethodModel(method));
         }
 
+        //1、MockClusterInvoker
+        //2、FailoverClusterInvoker
+        //FailoverClusterInvoker内部首先根据设置的负载均衡策略LoadBalance的扩展实现，选择一个invoker作为FailoverClusterInvoker具体的远程调用者，
+        //如果调用发生异常，则根据FailoverClusterInvoker的策略重新选择一个invoker重新调用
+        //3、ProtocolFilterWrapper
+        //4、ActiveLimitFilter
+        //5、最后调用了原生的DubboInvoker，其使用NettyClient与服务提供者进行交互
         return invoker.invoke(rpcInvocation).recreate();
     }
 }

@@ -30,6 +30,7 @@ class InjvmExporter<T> extends AbstractExporter<T> {
     private final DelegateExporterMap delegateExporterMap;
 
     InjvmExporter(Invoker<T> invoker, String key, DelegateExporterMap delegateExporterMap) {
+        //这里的key为服务key，比如对服务com.books.dubbo.demo.api.GreetingService来说，其key为dubbo/com.books.dubbo.demo.api.GreetingService：1.0.0
         super(invoker);
         this.key = key;
         this.delegateExporterMap = delegateExporterMap;

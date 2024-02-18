@@ -89,6 +89,31 @@ import static org.apache.dubbo.rpc.cluster.Constants.REFER_KEY;
  * Please avoid using this class for any new application,
  * use {@link ReferenceConfigBase} instead.
  */
+
+/**
+ *         ReferenceConfig<GreetingService> referenceConfig = new ReferenceConfig<GreetingService>();
+ *         //设置应用程序信息
+ *         referenceConfig.setApplication(new ApplicationConfig("first-dubbo-consumer"));
+ *         //设置服务注册中心
+ *         RegistryConfig registryConfig = new RegistryConfig("zookeeper://127.0.0.1:2181");
+ *         referenceConfig.setRegistry(registryConfig);
+ *         //设置服务接口和超时时间
+ *         referenceConfig.setInterface(GreetingService.class);
+ *         referenceConfig.setTimeout(5000);
+ *         //设置自定义负载均衡策略与集群容错策略
+ *         referenceConfig.setLoadbalance("myLoadBalance");
+ *         referenceConfig.setCluster("myBroadcast");
+ *         //设置服务分组与版本
+ *         referenceConfig.setVersion("1.0.0");
+ *         referenceConfig.setGroup("dubbo");
+ *         //引用服务
+ *         GreetingService greetingService = referenceConfig.get();
+ *         //设置隐式参数
+ *         RpcContext.getContext().setAttachment("company", "alibaba");
+ *         //调用服务
+ *         greetingService.sayHello("world");
+ * @param <T>
+ */
 public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
 
     public static final Logger logger = LoggerFactory.getLogger(ReferenceConfig.class);
@@ -198,6 +223,7 @@ public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
         this.services = services;
     }
 
+    //生成远程调用代理类
     public synchronized T get() {
         if (destroyed) {
             throw new IllegalStateException("The invoker of ReferenceConfig(" + url + ") has already destroyed!");
@@ -247,6 +273,7 @@ public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
         checkAndUpdateSubConfigs();
 
         checkStubAndLocal(interfaceClass);
+        //检查mock设置
         ConfigValidationUtils.checkMock(interfaceClass, this);
 
         Map<String, String> map = new HashMap<String, String>();
@@ -309,7 +336,7 @@ public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
         map.put(REGISTER_IP_KEY, hostToRegistry);
 
         serviceMetadata.getAttachments().putAll(map);
-
+        //创建代理
         ref = createProxy(map);
 
         serviceMetadata.setTarget(ref);
@@ -328,14 +355,20 @@ public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
 
     @SuppressWarnings({"unchecked", "rawtypes", "deprecation"})
     private T createProxy(Map<String, String> map) {
+        //是否需要打开本地引用，如果需要则创建JVM协议的本地引用，引用本地服务
         if (shouldJvmRefer(map)) {
+            //将创建一个本地URL，其中Host为127.0.0.1，Port为0，协议为injvm，这些参数与本地服务导出时一致
             URL url = new URL(LOCAL_PROTOCOL, LOCALHOST_VALUE, 0, interfaceClass.getName()).addParameters(map);
+            //其中refprotocol为扩展接口,由于协议类型为injvm,因此这里会返回SPI中缓存的InjvmProtocol对象
+            //并且该对象也是使用Wrapper包装后的
             invoker = REF_PROTOCOL.refer(interfaceClass, url);
             if (logger.isInfoEnabled()) {
                 logger.info("Using injvm service " + interfaceClass.getName());
             }
         } else {
+            //引用远程服务
             urls.clear();
+            //用户是否指定服务提供方地址：可以是服务提供方IP地址（直连方式）
             if (url != null && url.length() > 0) { // user specified URL, could be peer-to-peer address, or register center's address.
                 String[] us = SEMICOLON_SPLIT_PATTERN.split(url);
                 if (us != null && us.length > 0) {
@@ -354,6 +387,7 @@ public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
             } else { // assemble URL from register center's configuration
                 // if protocols not injvm checkRegistry
                 if (!LOCAL_PROTOCOL.equalsIgnoreCase(getProtocol())) {
+                    //根据服务注册中心信息装配URL对象
                     checkRegistry();
                     List<URL> us = ConfigValidationUtils.loadRegistries(this, false);
                     if (CollectionUtils.isNotEmpty(us)) {
@@ -373,10 +407,16 @@ public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
                     }
                 }
             }
-
+            //只有一个服务中心
             if (urls.size() == 1) {
+                //实际上是Protocol$Adaptive的refer方法
+                //设置了服务注册中心后，可以发现当前协议类型为registry
+                // 也就是说需要调用RegistryProtocol的refer方法
+                //但RegistryProtocol被QosProtocolWrapper、ProtocolFilterWrapper、ProtocolListenerWrapper三个Wrapper类增强了
+                //最后才调用到RegistryProtocol的refer方法，其内部主要调用了doRefer方法
                 invoker = REF_PROTOCOL.refer(interfaceClass, urls.get(0));
             } else {
+                //多个服务中心
                 List<Invoker<?>> invokers = new ArrayList<Invoker<?>>();
                 URL registryURL = null;
                 for (URL url : urls) {
@@ -413,6 +453,7 @@ public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
         MetadataUtils.publishServiceDefinition(consumerURL);
 
         // create service proxy
+        //创建服务代理
         return (T) PROXY_FACTORY.getProxy(invoker, ProtocolUtils.isGeneric(generic));
     }
 
@@ -502,6 +543,7 @@ public class ReferenceConfig<T> extends ReferenceConfigBase<T> {
                 isJvmRefer = false;
             } else {
                 // by default, reference local service if there is
+                //从InjvmProtocol的缓存中查看是否有本地暴露的服务
                 isJvmRefer = InjvmProtocol.getInjvmProtocol().isInjvmRefer(tmpUrl);
             }
         } else {

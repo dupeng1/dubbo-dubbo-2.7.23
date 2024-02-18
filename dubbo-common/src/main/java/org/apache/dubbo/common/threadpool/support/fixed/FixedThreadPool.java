@@ -43,11 +43,22 @@ public class FixedThreadPool implements ThreadPool {
 
     public static final String NAME = "fixed";
 
+    //创建一个具有固定个数线程的线程池。
     @Override
     public Executor getExecutor(URL url) {
+        //获取线程池中线程的名称前缀，如果没有设置，则使用默认名称Dubbo
         String name = url.getParameter(THREAD_NAME_KEY, DEFAULT_THREAD_NAME);
+        //获取线程池个数，如果没有设置，则使用默认的数值200
         int threads = url.getParameter(THREADS_KEY, DEFAULT_THREADS);
+        //获取线程池队列大小，如果没有设置，则使用默认的数值0
         int queues = url.getParameter(QUEUES_KEY, DEFAULT_QUEUES);
+        //使用JUC包的ThreadPoolExecutor创建线程池，
+        //1、核心线程个数和最大线程个数都设置为threads，所以创建的线程池是固定线程个数的线程池
+        //2、当队列元素为0时，阻塞队列使用的是SynchronousQueue；
+        //当队列元素小于0时，使用的是无界阻塞队列LinkedBlockingQueue；
+        //当队列元素大于0时，使用的是有界的LinkedBlockingQueue
+        //3、这里使用了自定义的线程工厂NamedInternalThreadFactory来为线程创建自定义名称，并将线程设置为daemon线程
+        //4、线程池拒绝策略选择了AbortPolicyWithReport，意味着当线程池队列已满并且线程池中线程都忙碌时，新来的任务会被丢弃，并抛出RejectedExecutionException异常
         return new ThreadPoolExecutor(threads, threads, 0, TimeUnit.MILLISECONDS,
                 queues == 0 ? new SynchronousQueue<Runnable>() :
                         (queues < 0 ? new LinkedBlockingQueue<Runnable>()

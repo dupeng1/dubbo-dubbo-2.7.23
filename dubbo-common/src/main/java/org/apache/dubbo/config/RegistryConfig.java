@@ -36,6 +36,10 @@ import static org.apache.dubbo.config.Constants.REGISTRIES_PREFIX;
  *
  * @export
  */
+
+/**
+ * 服务注册中心信息
+ */
 public class RegistryConfig extends AbstractConfig {
 
     public static final String NO_AVAILABLE = "N/A";

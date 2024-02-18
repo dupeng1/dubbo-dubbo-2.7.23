@@ -81,7 +81,9 @@ public class ContextFilter implements Filter, Filter.Listener {
 
     @Override
     public Result invoke(Invoker<?> invoker, Invocation invocation) throws RpcException {
+        //从invocation对象获取附加属性Map
         Map<String, Object> attachments = invocation.getObjectAttachments();
+        //不为null则设置到上下文对象中
         if (attachments != null) {
             Map<String, Object> newAttach = new HashMap<>(attachments.size());
             for (Map.Entry<String, Object> entry : attachments.entrySet()) {
@@ -130,6 +132,7 @@ public class ContextFilter implements Filter, Filter.Listener {
         } finally {
             context.clearAfterEachInvoke(true);
             // IMPORTANT! For async scenario, we must remove context from current thread, so we always create a new RpcContext for the next invoke for the same thread.
+            //清除上下文对象，则附加属性也被回收
             RpcContext.removeContext(true);
             RpcContext.removeServerContext();
         }

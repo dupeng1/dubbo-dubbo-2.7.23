@@ -24,9 +24,9 @@ import org.apache.dubbo.remoting.Dispatcher;
  * In addition to sending all the use thread pool processing
  */
 public class ExecutionDispatcher implements Dispatcher {
-
+    //线程模型名称
     public static final String NAME = "execution";
-
+    //扩展接口具体实现
     @Override
     public ChannelHandler dispatch(ChannelHandler handler, URL url) {
         return new ExecutionChannelHandler(handler, url);

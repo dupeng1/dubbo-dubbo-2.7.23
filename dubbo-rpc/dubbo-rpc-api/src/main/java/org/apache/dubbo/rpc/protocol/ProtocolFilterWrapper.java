@@ -36,9 +36,18 @@ import static org.apache.dubbo.common.constants.CommonConstants.SERVICE_FILTER_K
 /**
  * ListenerProtocol
  */
+
+/**
+ * 在消费端使用泛化调用发起请求后，请求会经过包装类ProtocolFilterWrapper创建的责任链
+ * 1、首先使用ProtocolListenerWrapper类对DubboProtocol进行包装，这时ProtocolListenerWrapper类里的impl就是DubboProtocol
+ * 2、ProtocolFilterWrapper对ProtocolListenerWrapper进行包装，ProtocolFilterWrapper里的impl是ProtocolListenerWrapper
+ * 3、适配器Protocol$Adaptive的export方法，如果URL对象里面的protocol为dubbo，那么在扩展点自动包装时，
+ * protocol.export返回的就是ProtocolFilterWrapper的实例了
+*/
 @Activate(order = 100)
 public class ProtocolFilterWrapper implements Protocol {
 
+    //对ProtocolListenerWrapper进行包装
     private final Protocol protocol;
 
     public ProtocolFilterWrapper(Protocol protocol) {
@@ -50,6 +59,7 @@ public class ProtocolFilterWrapper implements Protocol {
 
     private static <T> Invoker<T> buildInvokerChain(final Invoker<T> invoker, String key, String group) {
         Invoker<T> last = invoker;
+        //获取所有激活的Filter，然后使用链表方式形成责任链
         List<Filter> filters = ExtensionLoader.getExtensionLoader(Filter.class).getActivateExtension(invoker.getUrl(), key, group);
 
         if (!filters.isEmpty()) {
@@ -75,6 +85,7 @@ public class ProtocolFilterWrapper implements Protocol {
         return protocol.export(buildInvokerChain(invoker, SERVICE_FILTER_KEY, CommonConstants.PROVIDER));
     }
 
+    //将责任链头部的Filter返回到ProtocolListenerWrapper
     @Override
     public <T> Invoker<T> refer(Class<T> type, URL url) throws RpcException {
         if (UrlUtils.isRegistry(url)) {

@@ -210,15 +210,21 @@ public class RegistryProtocol implements Protocol {
 
         providerUrl = overrideUrlWithConfig(providerUrl, overrideSubscribeListener);
         // export invoker
+        //启动NettyServer进行监听服务
         final ExporterChangeableWrapper<T> exporter = doLocalExport(originInvoker, providerUrl);
 
         // url to registry
+        //获取服务注册中心
         final Registry registry = getRegistry(originInvoker);
         final URL registeredProviderUrl = getUrlToRegistry(providerUrl, registryUrl);
 
         // decide if we need to delay publish
+        //将当前服务注册到服务注册中心
         boolean register = providerUrl.getParameter(REGISTER_KEY, true);
         if (register) {
+            //FailbackRegistry.register
+            //ZookeeperRegistry.doRegister
+            //ZookeeperClient.create（将服务注册到ZooKeeper）
             registry.register(registeredProviderUrl);
         }
 
@@ -257,6 +263,8 @@ public class RegistryProtocol implements Protocol {
     @SuppressWarnings("unchecked")
     private <T> ExporterChangeableWrapper<T> doLocalExport(final Invoker<T> originInvoker, URL providerUrl) {
         String key = getCacheKey(originInvoker);
+        //调用了Protocol的适配器类Protocol$Adaptive，这里URL内的协议类型是dubbo，所以返回的SPI扩展实现类是DubboProtocol
+        //由于DubboProtocol也被Wrapper类增强了，所以也是一层层调用后，执行DubboProtocol的export方法
 
         return (ExporterChangeableWrapper<T>) bounds.computeIfAbsent(key, s -> {
             Invoker<?> invokerDelegate = new InvokerDelegate<>(originInvoker, providerUrl);
@@ -365,6 +373,8 @@ public class RegistryProtocol implements Protocol {
 
     protected Registry getRegistry(URL url) {
         try {
+            //RegistryFactory$Adaptive
+            //ZookeeperRegistryFactory
             return registryFactory.getRegistry(url);
         } catch (Throwable t) {
             LOGGER.error(t.getMessage(), t);
@@ -523,9 +533,13 @@ public class RegistryProtocol implements Protocol {
             directory.setRegisteredConsumerUrl(urlToRegistry);
             registry.register(directory.getRegisteredConsumerUrl());
         }
+        //根据订阅的URL建立路由规则链
         directory.buildRouterChain(urlToRegistry);
+        //向服务注册中心订阅服务提供者的服务
         directory.subscribe(toSubscribeUrl(urlToRegistry));
-
+        //包装机器容错策略到invoker，使用集群容错扩展将Dubbo协议的invoker客户端转换为需要的接口
+        //Dubbo对cluster扩展接口实现类使用Wrapper类MockClusterWrapper进行增强
+        //默认情况下cluster的扩展接口实现为FailoverCluster
         return (ClusterInvoker<T>) cluster.join(directory);
     }
 

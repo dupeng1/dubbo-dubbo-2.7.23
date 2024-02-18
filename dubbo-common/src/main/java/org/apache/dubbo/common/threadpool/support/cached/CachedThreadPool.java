@@ -49,10 +49,15 @@ public class CachedThreadPool implements ThreadPool {
 
     @Override
     public Executor getExecutor(URL url) {
+        //获取线程池中线程的名称前缀，如果没有设置，则使用默认名称Dubbo
         String name = url.getParameter(THREAD_NAME_KEY, DEFAULT_THREAD_NAME);
+        //获取线程池核心线程个数，如果没有设置，则使用默认的数值0
         int cores = url.getParameter(CORE_THREADS_KEY, DEFAULT_CORE_THREADS);
+        //获取线程池最大线程个数，如果没有设置，则使用默认的数值200
         int threads = url.getParameter(THREADS_KEY, Integer.MAX_VALUE);
+        //获取线程池队列大小，如果没有设置，则使用默认的数值0
         int queues = url.getParameter(QUEUES_KEY, DEFAULT_QUEUES);
+        //获取线程池队列线程空闲多少时间被回收，如果没有设置，则使用默认的数值60*1000
         int alive = url.getParameter(ALIVE_KEY, DEFAULT_ALIVE);
         return new ThreadPoolExecutor(cores, threads, alive, TimeUnit.MILLISECONDS,
                 queues == 0 ? new SynchronousQueue<Runnable>() :

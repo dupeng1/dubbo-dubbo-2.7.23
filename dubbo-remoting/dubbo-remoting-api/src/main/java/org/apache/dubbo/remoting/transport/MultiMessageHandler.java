@@ -26,6 +26,10 @@ import org.apache.dubbo.remoting.exchange.support.MultiMessage;
 /**
  * @see MultiMessage
  */
+
+/**
+ * 仅仅针对了received方法做了处理，对MultiMessage消息类型进行了支持
+ */
 public class MultiMessageHandler extends AbstractChannelHandlerDelegate {
 
     protected static final Logger logger = LoggerFactory.getLogger(MultiMessageHandler.class);

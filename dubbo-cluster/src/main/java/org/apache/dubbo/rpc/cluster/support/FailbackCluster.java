@@ -24,6 +24,11 @@ import org.apache.dubbo.rpc.cluster.support.wrapper.AbstractCluster;
  * {@link FailbackClusterInvoker}
  *
  */
+
+/**
+ * 失败自动恢复
+ * 当服务消费端调用服务出现异常后，在后台记录失败的请求，并按照一定的策略后期再进行重试，这种模式通常用于消息通知操作
+ */
 public class FailbackCluster extends AbstractCluster {
 
     public static final String NAME = "failback";

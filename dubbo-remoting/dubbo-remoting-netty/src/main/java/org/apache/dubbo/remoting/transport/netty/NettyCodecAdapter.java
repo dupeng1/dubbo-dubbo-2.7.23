@@ -42,6 +42,14 @@ import static org.apache.dubbo.remoting.Constants.MIN_BUFFER_SIZE;
 /**
  * NettyCodecAdapter.
  */
+
+/**
+ * 在消费端启动时，NettyCodecAdapter管理的编解码器被设置到Netty链接的Channel管线里
+ * 1、在Netty中，每个Channel（NioSocketChannel）与NioEventLoopGroup中的某一个NioEventLoop固定关联，业务线程就是异步地把请求转换为任务，
+ * 并写入与当前Channel关联的NioEventLoop内部管理的异步队列中，然后NioEventLoop关联的线程就会去异步执行任务
+ * 2、NioEventLoop关联的线程会把请求任务进行转换，即传递给Channel管理的管线中的每个Handler，其中的一个Handler就是编解码处理器，即InternalEncoder。
+ * 它又把任务委托给DubboCodec对请求任务进行编码
+ */
 final class NettyCodecAdapter {
 
     private final ChannelHandler encoder = new InternalEncoder();
@@ -89,6 +97,11 @@ final class NettyCodecAdapter {
         }
     }
 
+    /**
+     * 1、每个NioEventLoop会管理一个Selector对象和一个线程，线程会不断检查注册到该Selector对象上的Channel是否有读取事件，如果有，则从TCP缓存读取数据
+     * 2、当有读取事件时，NioEventLoop关联的线程会从缓存读取数据，然后把数据传递给该Channel管理的管线中的handler，这里会把数据传递给
+     * NettyCodecAdapter的内部类InternalDecoder
+     */
     private class InternalDecoder extends SimpleChannelUpstreamHandler {
 
         private org.apache.dubbo.remoting.buffer.ChannelBuffer buffer =

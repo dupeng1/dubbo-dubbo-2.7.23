@@ -25,6 +25,7 @@ import org.apache.dubbo.rpc.cluster.Directory;
  * mock impl
  *
  */
+
 public class MockClusterWrapper implements Cluster {
 
     private Cluster cluster;
@@ -33,6 +34,7 @@ public class MockClusterWrapper implements Cluster {
         this.cluster = cluster;
     }
 
+    //把FailoverClusterInvoker包装成了MockClusterInvoker实例。所以整个调用链最终返回的是MockClusterInvoker对象
     @Override
     public <T> Invoker<T> join(Directory<T> directory) throws RpcException {
         return new MockClusterInvoker<T>(directory,

@@ -24,6 +24,11 @@ import org.apache.dubbo.rpc.cluster.support.wrapper.AbstractCluster;
  * {@link FailfastClusterInvoker}
  *
  */
+
+/**
+ * 快速失败
+ * 当服务消费方调用服务提供者失败后，立即报错，也就是只调用一次，通常这种模式用于非幂等性的写操作
+ */
 public class FailfastCluster extends AbstractCluster {
 
     public static final String NAME = "failfast";

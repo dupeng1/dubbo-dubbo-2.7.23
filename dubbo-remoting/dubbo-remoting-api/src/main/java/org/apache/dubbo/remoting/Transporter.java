@@ -28,6 +28,13 @@ import org.apache.dubbo.common.extension.SPI;
  *
  * @see org.apache.dubbo.remoting.Transporters
  */
+
+/**
+ * 网络传输层：Mina和Netty抽象为统一接口
+ * 1、扩展接口为Channel，对应的实现有NettyChannel、MinaChannel
+ * 2、扩展接口Transporter，对应的实现类有GrizzlyTransporter、MinaTransporter、NettyTransporter
+ * 3、扩展接口Codec2，对应的实现有DubboCodec、ThriftCodec
+ */
 @SPI("netty")
 public interface Transporter {
 

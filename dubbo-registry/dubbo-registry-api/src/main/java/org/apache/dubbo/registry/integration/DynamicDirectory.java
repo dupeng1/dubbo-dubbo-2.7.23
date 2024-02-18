@@ -160,6 +160,7 @@ public abstract class DynamicDirectory<T> extends AbstractDirectory<T> implement
 
     public void subscribe(URL url) {
         setConsumerUrl(url);
+        //registry是ZookeeperRegistry
         registry.subscribe(url, this);
     }
 
@@ -168,6 +169,7 @@ public abstract class DynamicDirectory<T> extends AbstractDirectory<T> implement
         registry.unsubscribe(url, this);
     }
 
+    //获取服务提供者Invoker列表
     @Override
     public List<Invoker<T>> doList(Invocation invocation) {
         if (forbidden && shouldFailFast) {

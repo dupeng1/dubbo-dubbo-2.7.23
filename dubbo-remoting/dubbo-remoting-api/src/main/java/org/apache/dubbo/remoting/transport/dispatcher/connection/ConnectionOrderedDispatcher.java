@@ -24,9 +24,9 @@ import org.apache.dubbo.remoting.Dispatcher;
  * connect disconnect ensure the order
  */
 public class ConnectionOrderedDispatcher implements Dispatcher {
-
+    //线程模型名称
     public static final String NAME = "connection";
-
+    //扩展接口具体实现
     @Override
     public ChannelHandler dispatch(ChannelHandler handler, URL url) {
         return new ConnectionOrderedChannelHandler(handler, url);

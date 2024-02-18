@@ -64,6 +64,23 @@ public abstract class AbstractZookeeperClient<TargetDataListener, TargetChildLis
     }
 
 
+    /**
+     * create方法是递归函数，
+     * 1、首先调用了方法createPersistent分别创建了节点
+     * /dubbo、/dubbo/com.books.dubbo.demo.api.GreetingService、/dubbo/com.books.dubbo.demo.api.GreetingService/providers
+     * 2、然后调用createEphemeral方法创建服务URL节点
+     * 3、Zookeeper节点分四层，第一层Root节点说明Zookeeper的服务分组为Dubbo
+     * 第二层service节点说明注册的服务为com.books.dubbo.demo.api.GreetingService接口
+     * 第三层Type节点说明是为服务提供者注册的服务
+     * 第四层URL记录服务提供者的地址信息
+     * 4、第一个服务提供者注册时需要Zookeeper服务端创建第一层的Dubbo节点、第二层的service节点、第三层的Type节点，但是同一个Service的其他机器
+     * 在注册服务时因为上面三层节点已经存在了，所以只需要在Providers下也就是第四层插入服务提供者信息节点就可以了
+     * 5、服务注册到Zookeeper后，消费端就可以在Providers节点下找到com.books.dubbo.demo.api.GreetingService服务的所有服务提供者，然后根据设置的
+     * 负载均衡策略选择机器进行远程调用了
+     *
+     * @param path
+     * @param ephemeral
+     */
     @Override
     public void create(String path, boolean ephemeral) {
         if (!ephemeral) {

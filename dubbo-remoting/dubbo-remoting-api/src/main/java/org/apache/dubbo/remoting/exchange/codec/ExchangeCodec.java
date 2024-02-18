@@ -69,11 +69,16 @@ public class ExchangeCodec extends TelnetCodec {
 
     @Override
     public void encode(Channel channel, ChannelBuffer buffer, Object msg) throws IOException {
+        //对请求信息进行编码
         if (msg instanceof Request) {
             encodeRequest(channel, buffer, (Request) msg);
-        } else if (msg instanceof Response) {
+        }
+        //对响应信息进行编码
+        else if (msg instanceof Response) {
             encodeResponse(channel, buffer, (Response) msg);
-        } else {
+        }
+        //对其他信息进行编码
+        else {
             super.encode(channel, buffer, msg);
         }
     }
@@ -230,14 +235,19 @@ public class ExchangeCodec extends TelnetCodec {
         throw new IllegalArgumentException("Failed to find any request match the response, response id: " + id);
     }
 
+    //对请求信息进行编码
     protected void encodeRequest(Channel channel, ChannelBuffer buffer, Request req) throws IOException {
+        //1.1、获取序列化扩展实现，默认为hession序列化方式
         Serialization serialization = getSerialization(channel, req);
         // header.
+        //1.2、创建Dubbo协议扩展头字节数组，由于协议的协议头部分为16字节，所以这里创建了16字节的byte数组，HEADER_LENGTH为16
         byte[] header = new byte[HEADER_LENGTH];
         // set magic number.
+        //1.3、把魔数0xdabb写入协议头的前两字节
         Bytes.short2bytes(MAGIC, header);
 
         // set request and serialization flag.
+        //1.4、设置请求类型与序列化类型标记到协议头第3字节
         header[2] = (byte) (FLAG_REQUEST | serialization.getContentTypeId());
 
         if (req.isTwoWay()) {
@@ -248,9 +258,11 @@ public class ExchangeCodec extends TelnetCodec {
         }
 
         // set request id.
+        //1.5、将请求ID设置到协议头的第5-12字节，由于是request类型，所以第4字节的响应码是不需要设置的
         Bytes.long2bytes(req.getId(), header, 4);
 
         // encode request data.
+        //1.6、使用代码1.1获取的序列化方式对象数据进行编码，并把协议数据部分写入缓存（buffer）
         int savedWriteIndex = buffer.writerIndex();
         buffer.writerIndex(savedWriteIndex + HEADER_LENGTH);
         ChannelBufferOutputStream bos = new ChannelBufferOutputStream(buffer);
@@ -265,6 +277,7 @@ public class ExchangeCodec extends TelnetCodec {
             } else {
                 encodeRequestData(channel, out, req.getData(), req.getVersion());
             }
+            //1.7、刷新缓存
             out.flushBuffer();
             if (out instanceof Cleanable) {
                 ((Cleanable) out).cleanup();
@@ -273,35 +286,46 @@ public class ExchangeCodec extends TelnetCodec {
 
         bos.flush();
         bos.close();
+        //1.8、检查协议数据部分是否超过了设置的大小，如果是则抛出异常
         int len = bos.writtenBytes();
         checkPayload(channel, len);
+        //如果检查合法，则把协议数据部分的大小写入协议头的第12-16字节
         Bytes.int2bytes(len, header, 12);
 
         // write
+        //1.9、把缓存的写入下标移动到写入协议数据前的位置，然后把协议头写入缓存，这时缓存里存放了完整Dubbo协议帧（协议头+协议数据体），最后把缓存的写入下标设置为
+        //写入Dubbo协议帧后的位置
         buffer.writerIndex(savedWriteIndex);
         buffer.writeBytes(header); // write header.
         buffer.writerIndex(savedWriteIndex + HEADER_LENGTH + len);
     }
 
+    //对响应信息进行编码
     protected void encodeResponse(Channel channel, ChannelBuffer buffer, Response res) throws IOException {
         int savedWriteIndex = buffer.writerIndex();
         try {
+            //1.1、获取序列化扩展实现，默认为hession序列化方式
             Serialization serialization = getSerialization(channel, res);
             // header.
+            //1.2、创建Dubbo协议扩展头字节数组，由于协议的协议头部分为16字节，所以这里创建了16字节的byte数组，HEADER_LENGTH为16
             byte[] header = new byte[HEADER_LENGTH];
             // set magic number.
+            //1.3、把魔数0xdabb写入协议头的前两字节
             Bytes.short2bytes(MAGIC, header);
             // set request and serialization flag.
+            //1.4、设置请求类型与序列化类型标记到协议头第3字节
             header[2] = serialization.getContentTypeId();
             if (res.isHeartbeat()) {
                 header[2] |= FLAG_EVENT;
             }
             // set response status.
+            //1.5、设置响应类型到第4字节
             byte status = res.getStatus();
             header[3] = status;
             // set request id.
+            //1.6、将请求ID设置到协议头的第5-12字节
             Bytes.long2bytes(res.getId(), header, 4);
-
+            //1.7、使用代码1.1获取的序列化方式对象数据进行编码，并把协议数据部分写入缓存（buffer）
             buffer.writerIndex(savedWriteIndex + HEADER_LENGTH);
             ChannelBufferOutputStream bos = new ChannelBufferOutputStream(buffer);
 
@@ -317,6 +341,7 @@ public class ExchangeCodec extends TelnetCodec {
                     } else {
                         encodeResponseData(channel, out, res.getResult(), res.getVersion());
                     }
+                    //1.8、刷新缓存
                     out.flushBuffer();
                     if (out instanceof Cleanable) {
                         ((Cleanable) out).cleanup();
@@ -333,11 +358,14 @@ public class ExchangeCodec extends TelnetCodec {
 
             bos.flush();
             bos.close();
-
+            //1.9、检查协议数据部分是否超过了设置的大小，如果是则抛出异常
             int len = bos.writtenBytes();
             checkPayload(channel, len);
+            //如果检查合法，则把协议数据部分的大小写入协议头的第12-16字节
             Bytes.int2bytes(len, header, 12);
             // write
+            //1.10、把缓存的写入下标移动到写入协议数据前的位置，然后把协议头写入缓存，这时缓存里存放了完整Dubbo协议帧（协议头+协议数据体），最后把缓存的写入下标设置为
+            //写入Dubbo协议帧后的位置
             buffer.writerIndex(savedWriteIndex);
             buffer.writeBytes(header); // write header.
             buffer.writerIndex(savedWriteIndex + HEADER_LENGTH + len);

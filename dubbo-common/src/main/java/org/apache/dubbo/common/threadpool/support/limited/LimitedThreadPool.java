@@ -45,12 +45,18 @@ public class LimitedThreadPool implements ThreadPool {
 
     public static final String NAME = "limited";
 
+    //创建一个线程池，这个线程池中的线程个数随着需要量动态增加，但是数量不超过配置的阈值。另外，空闲线程不会被回收，会一直存在。
     @Override
     public Executor getExecutor(URL url) {
+        //获取线程池中线程的名称前缀，如果没有设置，则使用默认名称Dubbo
         String name = url.getParameter(THREAD_NAME_KEY, DEFAULT_THREAD_NAME);
+        //获取线程池核心线程个数，如果没有设置，则使用默认的数值0
         int cores = url.getParameter(CORE_THREADS_KEY, DEFAULT_CORE_THREADS);
+        //获取线程池最大线程个数，如果没有设置，则使用默认的数值200
         int threads = url.getParameter(THREADS_KEY, DEFAULT_THREADS);
+        //获取线程池队列大小，如果没有设置，则使用默认的数值0
         int queues = url.getParameter(QUEUES_KEY, DEFAULT_QUEUES);
+        //使用JUC包的ThreadPoolExecutor创建线程池，
         return new ThreadPoolExecutor(cores, threads, Long.MAX_VALUE, TimeUnit.MILLISECONDS,
                 queues == 0 ? new SynchronousQueue<Runnable>() :
                         (queues < 0 ? new LinkedBlockingQueue<Runnable>()

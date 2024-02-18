@@ -25,6 +25,14 @@ import org.apache.dubbo.common.URL;
  * @see org.apache.dubbo.registry.RegistryFactory#getRegistry(URL)
  * @see org.apache.dubbo.registry.support.AbstractRegistry
  */
+
+/**
+ * 服务注册中心：主要封装服务地址的注册与发现逻辑
+ * 1、服务提供者启动时会把服务注册到服务注册中心
+ * 2、消费者启动时会去服务注册中心获取服务提供者的地址列表
+ * 3、扩展接口Registry、扩展接口RegistryFactory、扩展接口Directory
+ * 4、扩展接口Registry的适配器类Registry$Adaptive，根据参数register来决定使用ZookeeperRegistry、RedisRegistry、MulticastRegistry、DubboRegistry
+ */
 public interface Registry extends Node, RegistryService {
     default void reExportRegister(URL url) {
         register(url);

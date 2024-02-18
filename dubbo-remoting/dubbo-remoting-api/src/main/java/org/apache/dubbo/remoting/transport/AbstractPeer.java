@@ -123,6 +123,16 @@ public abstract class AbstractPeer implements Endpoint, ChannelHandler {
         if (closed) {
             return;
         }
+        //1、MultiMessageHandler.connected（ChannelHandler）
+        //2、HeartbeatHandler.connected（ChannelHandler）
+        //3、AllChannelHandler.connected（ChannelHandler）
+        //4、ExecutorService.execute
+        //5、ChannelEventRunnable
+        //6、HeaderExchangeHandler.connected（ChannelHandler）
+        //7、DubboProtocol.requestHandler（ExchangeHandler）.connected
+        //8、DubboProtocol.requestHandler（ExchangeHandler）.invoke
+        //9、DubboProtocol.requestHandler（ExchangeHandler）.createInvocation
+        //10、DubboProtocol.requestHandler（ExchangeHandler）.received
         handler.connected(ch);
     }
 
@@ -144,6 +154,17 @@ public abstract class AbstractPeer implements Endpoint, ChannelHandler {
         if (closed) {
             return;
         }
+        //1、MultiMessageHandler.connected（ChannelHandler）
+        //2、HeartbeatHandler.connected（ChannelHandler）
+        //3、AllChannelHandler.connected（ChannelHandler）
+        //4、ExecutorService.execute
+        //5、ChannelEventRunnable
+        //6、HeaderExchangeHandler.received（ChannelHandler）
+        //7-1、HeaderExchangeHandler.handleRequest（ChannelHandler）
+        //7-2、DubboProtocol.requestHandler（ExchangeHandler）.reply
+        //8-1、DubboProtocol.requestHandler（ExchangeHandler）.received
+        //8-2、DubboProtocol.requestHandler（ExchangeHandler）.reply
+
         handler.received(ch, msg);
     }
 

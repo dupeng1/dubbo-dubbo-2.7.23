@@ -120,6 +120,7 @@ public class DubboProtocol extends AbstractProtocol {
             }
 
             Invocation inv = (Invocation) message;
+            //获取调用方法对应的Invoker，获取调用方法对应的DubboExporter对象导出的Invoker对象
             Invoker<?> invoker = getInvoker(channel, inv);
             // need to consider backward-compatibility if it's a callback
             if (Boolean.TRUE.toString().equals(inv.getObjectAttachments().get(IS_CALLBACK_SERVICE_INVOKE))) {
@@ -144,8 +145,17 @@ public class DubboProtocol extends AbstractProtocol {
                     return null;
                 }
             }
+            //获取上下文对象，并设置对端地址
             RpcContext.getContext().setRemoteAddress(channel.getRemoteAddress());
+            //执行invoker调用链
+            //1、EchoFilter.invoke
+            //2、GenericFilter.invoke
+            //3、MonitorFilter.invoke
+            //4、InvokerDelegate.invoke
+            //5、AbstractProxyInvoker.doinvoke
             Result result = invoker.invoke(inv);
+            //写回结果
+            //如果结果为AsyncRpcResult说明为服务提供方的异步执行
             return result.thenApply(Function.identity());
         }
 
@@ -173,7 +183,9 @@ public class DubboProtocol extends AbstractProtocol {
         }
 
         private void invoke(Channel channel, String methodKey) {
+            //1、创建Invocation对象
             Invocation invocation = createInvocation(channel, channel.getUrl(), methodKey);
+            //2、不为null则调用received进行处理
             if (invocation != null) {
                 try {
                     received(channel, invocation);
@@ -193,11 +205,12 @@ public class DubboProtocol extends AbstractProtocol {
          * @return
          */
         private Invocation createInvocation(Channel channel, URL url, String methodKey) {
+            //3、如果URL里面不包含methodKey，则直接返回null
             String method = url.getParameter(methodKey);
             if (method == null || method.length() == 0) {
                 return null;
             }
-
+            //4、根据method创建RpcInvocation对象
             RpcInvocation invocation = new RpcInvocation(method, url.getParameter(INTERFACE_KEY), "", new Class<?>[0], new Object[0]);
             invocation.setAttachment(PATH_KEY, url.getPath());
             invocation.setAttachment(GROUP_KEY, url.getParameter(GROUP_KEY));
@@ -259,6 +272,7 @@ public class DubboProtocol extends AbstractProtocol {
                 (String) inv.getObjectAttachments().get(VERSION_KEY),
                 (String) inv.getObjectAttachments().get(GROUP_KEY)
         );
+        //导出的DubboExporter对象会保存到exporterMap中
         DubboExporter<?> exporter = (DubboExporter<?>) exporterMap.getExport(serviceKey);
 
         if (exporter == null) {
@@ -267,7 +281,7 @@ public class DubboProtocol extends AbstractProtocol {
                             ", channel: consumer: " + channel.getRemoteAddress() + " --> provider: " + channel.getLocalAddress() +
                             ", message:" + getInvocationWithoutData(inv));
         }
-
+        //这里的getInvoker获取的是RegistryProtocol$InvokerDelegate
         return exporter.getInvoker();
     }
 
@@ -285,8 +299,10 @@ public class DubboProtocol extends AbstractProtocol {
         URL url = invoker.getUrl();
 
         // export service.
+        //Invoker到Exporter的转换
         String key = serviceKey(url);
         DubboExporter<T> exporter = new DubboExporter<T>(invoker, key, exporterMap);
+        //把DubboExporter保存到了缓存exporterMap里（在服务提供方处理请求时会从中获取出来）
         exporterMap.addExportMap(key, exporter);
 
         //export an stub service for dispatching event
@@ -303,6 +319,7 @@ public class DubboProtocol extends AbstractProtocol {
             }
         }
 
+        //同一个机器的不同服务导出只会开启一个NettyServer
         openServer(url);
         optimizeSerialization(url);
 
@@ -311,10 +328,14 @@ public class DubboProtocol extends AbstractProtocol {
 
     private void openServer(URL url) {
         // find server.
+        //提供者机器的地址ip:port
         String key = url.getAddress();
         //client can export a service which's only for server to invoke
+        //只有服务提供端才会启动监听，判断当前是否为服务提供端
         boolean isServer = url.getParameter(IS_SERVER_KEY, true);
         if (isServer) {
+            //如果是则以此key查看缓存serverMap中是否有对应的Server，如果没有则调用createServer方法创建
+            //由于每个机器ip:port是唯一的，所以多个不同服务启动时只有第一个会被创建，后面的服务都是直接从缓存中返回的
             ProtocolServer server = serverMap.get(key);
             if (server == null) {
                 synchronized (this) {
@@ -346,6 +367,11 @@ public class DubboProtocol extends AbstractProtocol {
 
         ExchangeServer server;
         try {
+            //1、Exchangers.bind
+            //2、HeaderExchanger.bind
+            //3、Transporters.bind
+            //4、Transporter$Adaptive（传输类型为Netty）
+            //5、NettyTransporter（创建NettyServer）
             server = Exchangers.bind(url, requestHandler);
         } catch (RemotingException e) {
             throw new RpcException("Fail to start server(url: " + url + ") " + e.getMessage(), e);
@@ -403,27 +429,34 @@ public class DubboProtocol extends AbstractProtocol {
         optimizeSerialization(url);
 
         // create rpc invoker.
+        //getClients()方法创建服务消费端的NettyClient对象
         DubboInvoker<T> invoker = new DubboInvoker<T>(serviceType, url, getClients(url), invokers);
         invokers.add(invoker);
 
         return invoker;
     }
 
+    //创建服务消费端的NettyClient对象，在默认情况下当消费端引用同一个服务提供者机器上多个服务时，这些服务复用一个Netty链接
     private ExchangeClient[] getClients(URL url) {
         // whether to share connection
         int connections = url.getParameter(CONNECTIONS_KEY, 0);
         // if not configured, connection is shared, otherwise, one connection for one service
+        //如果没配置，则默认链接是共享的，否则每个服务单独有自己的链接
         if (connections == 0) {
             /*
              * The xml configuration should have a higher priority than properties.
              */
+            //xml配置优先级高于属性配置
             String shareConnectionsStr = url.getParameter(SHARE_CONNECTIONS_KEY, (String) null);
             connections = Integer.parseInt(StringUtils.isBlank(shareConnectionsStr) ? ConfigUtils.getProperty(SHARE_CONNECTIONS_KEY,
                     DEFAULT_SHARE_CONNECTIONS) : shareConnectionsStr);
+            //获取共享NettyClient
             return getSharedClient(url, connections).toArray(new ExchangeClient[0]);
         } else {
+            //初始化Client
             ExchangeClient[] clients = new ExchangeClient[connections];
             for (int i = 0; i < clients.length; i++) {
+                //创建新的Client
                 clients[i] = initClient(url);
             }
             return clients;
@@ -582,6 +615,7 @@ public class DubboProtocol extends AbstractProtocol {
      *
      * @param url
      */
+    //创建服务消费端的NettyClient对象，默认lazy为false，所以当消费端启动时就与提供者建立链接
     private ExchangeClient initClient(URL url) {
 
         // client type setting.
@@ -602,9 +636,11 @@ public class DubboProtocol extends AbstractProtocol {
         try {
             // connection should be lazy
             if (url.getParameter(LAZY_CONNECT_KEY, false)) {
+                //为惰性链接
                 client = new LazyConnectExchangeClient(url, requestHandler);
 
             } else {
+                //为及时链接
                 client = Exchangers.connect(url, requestHandler);
             }
 

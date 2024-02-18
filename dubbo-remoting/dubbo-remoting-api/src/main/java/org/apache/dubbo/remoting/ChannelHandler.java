@@ -25,6 +25,18 @@ import org.apache.dubbo.common.extension.SPI;
  * @see org.apache.dubbo.remoting.Transporter#bind(org.apache.dubbo.common.URL, ChannelHandler)
  * @see org.apache.dubbo.remoting.Transporter#connect(org.apache.dubbo.common.URL, ChannelHandler)
  */
+
+/**
+ * 当服务消费者调用服务提供者的服务时，提供者用来处理各个消息事件
+ * 在Dubbo的实际调用过程中，当消费者调用服务提供者的服务时会发送Netty消息，服务提供者接收到Netty消息会按照下图的流程一层一层执行
+ * 最终的消息交由DubboProtocol的requestHandler来处理
+ * 1、MultiMessageHandler：处理MultiMessage消息
+ * 2、HeartbeatHandler：处理心跳消息，增加时间戳
+ * 3、AllChannelHandler：这里实际根据线程模型，选择合适的handler，并非一定是AllChannelHandler
+ * 4、DecodeHandler：解码器，recieve事件解码消息
+ * 5、HeaderExchangeHandler：实现了数据接收过来数据的分发，能够根据接收过来的数据类型不同作出不同处理
+ * 6、DubboProtocol#requestHandler：进行事件处理
+ */
 @SPI
 public interface ChannelHandler {
 

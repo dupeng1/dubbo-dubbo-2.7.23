@@ -137,6 +137,7 @@ public abstract class AbstractServiceConfig extends AbstractInterfaceConfig {
         return delay;
     }
 
+    //设置延迟发布时间
     public void setDelay(Integer delay) {
         this.delay = delay;
     }

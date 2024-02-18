@@ -30,6 +30,12 @@ import org.apache.dubbo.rpc.RpcException;
  * <a href="http://en.wikipedia.org/wiki/Fault-tolerant_system">Fault-Tolerant</a>
  *
  */
+
+/**
+ * 路由层：封装多个服务提供者的路由规则、负载均衡、集群容错的实现，并桥接服务注册中心
+ * 1、扩展接口Cluster对应的实现类有FailoverCluster、FailbackCluster、FailfastCluster、FailsafeCluster、ForkingCluster
+ * 2、负载均衡接口LoadBalance对应的实现类有RandomLoadBalance、RoundRobinLoadBalance、LeastActiveLoadBalance、ConsistentHashLoadBalance
+ */
 @SPI(Cluster.DEFAULT)
 public interface Cluster {
 

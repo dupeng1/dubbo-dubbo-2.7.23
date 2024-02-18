@@ -63,7 +63,9 @@ public class ForkingClusterInvoker<T> extends AbstractClusterInvoker<T> {
         try {
             checkInvokers(invokers, invocation);
             final List<Invoker<T>> selected;
+            //获取配置参数
             final int forks = getUrl().getParameter(FORKS_KEY, DEFAULT_FORKS);
+            //获取并行执行的Invoker列表
             if (forks <= 0 || forks >= invokers.size()) {
                 selected = invokers;
             } else {
@@ -76,6 +78,7 @@ public class ForkingClusterInvoker<T> extends AbstractClusterInvoker<T> {
                     }
                 }
             }
+            //使用线程池让Invoker列表中的Invoker并发执行
             RpcContext.getContext().setInvokers((List) selected);
             final AtomicInteger count = new AtomicInteger();
             final BlockingQueue<Object> ref = new LinkedBlockingQueue<>();
@@ -83,8 +86,10 @@ public class ForkingClusterInvoker<T> extends AbstractClusterInvoker<T> {
                 executor.execute(() -> {
                     try {
                         Result result = invoker.invoke(invocation);
+                        //执行完毕后会把返回结果放入并发安全的队列ref中
                         ref.offer(result);
                     } catch (Throwable e) {
+                        //所有的Invoker都调用失败则记录错误，count用来记录远程调用过程中出现异常的次数
                         int value = count.incrementAndGet();
                         if (value >= selected.size()) {
                             ref.offer(e);
@@ -93,6 +98,7 @@ public class ForkingClusterInvoker<T> extends AbstractClusterInvoker<T> {
                 });
             }
             try {
+                //获取执行结果并返回，只要有一个请求返回了，ref中就有元数了，这时poll就直接返回了远程调用的结果
                 Object ret = ref.poll(Integer.MAX_VALUE, TimeUnit.MILLISECONDS);
                 if (ret instanceof Throwable) {
                     Throwable e = (Throwable) ret;

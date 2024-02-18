@@ -49,6 +49,10 @@ import static org.apache.dubbo.rpc.Constants.GENERIC_KEY;
 /**
  * GenericImplInvokerFilter
  */
+
+/**
+ * 实现泛化引用，下一步交给DubboProtocol处理
+ */
 @Activate(group = CommonConstants.CONSUMER, value = GENERIC_KEY, order = 20000)
 public class GenericImplFilter implements Filter, Filter.Listener {
 
@@ -101,27 +105,34 @@ public class GenericImplFilter implements Filter, Filter.Listener {
             return invoker.invoke(invocation2);
         }
         // making a generic call to a normal service
+        //判断是否为泛化调用
         else if (isMakingGenericCall(generic, invocation)) {
-
+            //获取泛化参数
             Object[] args = (Object[]) invocation.getArguments()[2];
+            //如果为nativeJava方式
             if (ProtocolUtils.isJavaGenericSerialization(generic)) {
 
                 for (Object arg : args) {
+                    //判断参数是否是byte[]类型，如果不是则说明参数传递错误，抛出异常
                     if (byte[].class != arg.getClass()) {
                         error(generic, byte[].class.getName(), arg.getClass().getName());
                     }
                 }
-            } else if (ProtocolUtils.isBeanGenericSerialization(generic)) {
+            }
+            //如果为bean方式
+            else if (ProtocolUtils.isBeanGenericSerialization(generic)) {
                 for (Object arg : args) {
+                    //判断参数是否为JavaBeanDescriptor类型，如果不是则说明参数错误，抛出异常
                     if (!(arg instanceof JavaBeanDescriptor)) {
                         error(generic, JavaBeanDescriptor.class.getName(), arg.getClass().getName());
                     }
                 }
             }
-
+            //把泛化类型设置到invocation中，泛化类型需要被传递给服务端，以便服务端根据具体泛化类型对参数进行反序列化处理
             invocation.setAttachment(
                     GENERIC_KEY, invoker.getUrl().getParameter(GENERIC_KEY));
         }
+        //发起远程调用
         return invoker.invoke(invocation);
     }
 

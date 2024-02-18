@@ -87,6 +87,7 @@ public class InjvmProtocol extends AbstractProtocol implements Protocol{
         return DEFAULT_PORT;
     }
 
+    //方法返回了一个InjvmExporter对象，并保存了InjvmProtocol中的exporterMap变量
     @Override
     public <T> Exporter<T> export(Invoker<T> invoker) throws RpcException {
         String serviceKey = invoker.getUrl().getServiceKey();

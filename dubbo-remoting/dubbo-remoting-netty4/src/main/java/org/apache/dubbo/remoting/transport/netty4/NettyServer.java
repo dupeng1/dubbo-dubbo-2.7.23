@@ -53,6 +53,26 @@ import static org.apache.dubbo.common.constants.CommonConstants.SSL_ENABLED_KEY;
 /**
  * NettyServer.
  */
+
+/**
+ * 1、如果服务提供方的逻辑处理能迅速完成，并且不会发起新的I/O请求，那么直接在I/O线程上处理会更快，因为这样减少了线程池调度与上下文切换的开销
+ * 但如果逻辑较慢，或者需要发起新的I/O请求，比如需要查询数据库，则I/O线程必须发请求到新的线程池进行处理，否则I/O线程会被阻塞，导致不能接收其他请求
+ * 2、根据请求的消息类是被I/O线程处理还是被业务线程池处理，Dubbo提供了下面的几种线程模型
+ * all：所有消息都派发到业务线程池，这些消息包括请求、响应、连接事件、断开事件、心跳事件等（biz）
+ * direct：所有消息都不派发到业务线程池，全部在I/O线程上直接执行（worker）
+ * messasge：只有请求响应消息派发到业务线程池（biz），其他消息如连接事件、断开事件、心跳事件等直接在I/O线程上执行（worker）
+ * execution：只把请求类消息派发到业务线程池（biz），但是响应、连接事件、断开事件、心跳事件等消息直接在I/O线程上执行（worker）
+ * connection：在I/O线程上将连接事件、断开事件放入队列，有序地逐个执行（worker），其他消息派发到业务线程池处理（biz）
+ * 3、Dubbo线程模型为了尽早释放Netty的I/O线程，某些线程模型会把请求投递到线程池就行异步处理。这里的线程池ThreadPool也是一个扩展接口SPI
+ * FixedThreadPool：创建一个具有固定个数线程的线程池
+ * LimitedThreadPool：创建一个线程池，这个线程池中的线程个数随着需要量动态增加，但是数量不超过配置的阈值。另外，空闲线程不会被回收，会一直存在
+ * EagerThreadPool：创建一个线程池，这个线程池中，当所有核心线程都处于忙碌状态时，将创建新的线程来执行新的任务，而不是把任务放入线程池阻塞队列
+ * CachedThreadPool：创建一个自适应线程池，当线程空闲1分钟时，线程会被回收；当有新请求到来时，会创建新线程
+ * 4、Netty中存在两种线程：boss线程和work线程
+ * boss线程：accept客户端的链接，将接收的链接注册到一个work线程上，个数通常情况下服务端每绑定一个端口，开启一个boss线程
+ * work线程：处理注册在其身上的链接上的各种io事件，个数通常是默认核数+1，一个work线程可以注册多个connection，
+ * 一个connection只能注册在一个work线程上
+ */
 public class NettyServer extends AbstractServer implements RemotingServer {
 
     private static final Logger logger = LoggerFactory.getLogger(NettyServer.class);
@@ -70,7 +90,10 @@ public class NettyServer extends AbstractServer implements RemotingServer {
      */
 	private io.netty.channel.Channel channel;
 
+	//使用两级线程池，bossGroup和workerGroup线程组称为I/O线程
+    //主要用来接收客户端链接请求
     private EventLoopGroup bossGroup;
+    //完成TCP三次握手的链接分发给workerGroup来处理
     private EventLoopGroup workerGroup;
 
     public NettyServer(URL url, ChannelHandler handler) throws RemotingException {
@@ -86,17 +109,20 @@ public class NettyServer extends AbstractServer implements RemotingServer {
      */
     @Override
     protected void doOpen() throws Throwable {
+        //创建ServerBootstrap
         bootstrap = new ServerBootstrap();
-
+        //设置Netty的boss线程池
         bossGroup = createBossGroup();
+        //设置Netty的worker线程池
         workerGroup = createWorkerGroup();
-
+        //设置NettyServer，添加handler到管线
         final NettyServerHandler nettyServerHandler = createNettyServerHandler();
         channels = nettyServerHandler.getChannels();
 
         initServerBootstrap(nettyServerHandler);
 
         // bind
+        //绑定本地端口，并启动监听服务
         ChannelFuture channelFuture = bootstrap.bind(getBindAddress());
         channelFuture.syncUninterruptibly();
         channel = channelFuture.channel();
@@ -130,6 +156,7 @@ public class NettyServer extends AbstractServer implements RemotingServer {
                     @Override
                     protected void initChannel(SocketChannel ch) throws Exception {
                         // FIXME: should we use getTimeout()?
+                        //添加handler到接收链接的管线
                         int idleTimeout = UrlUtils.getIdleTimeout(getUrl());
                         NettyCodecAdapter adapter = new NettyCodecAdapter(getCodec(), getUrl(), NettyServer.this);
                         if (getUrl().getParameter(SSL_ENABLED_KEY, false)) {
@@ -137,10 +164,10 @@ public class NettyServer extends AbstractServer implements RemotingServer {
                                     SslHandlerInitializer.sslServerHandler(getUrl(), nettyServerHandler));
                         }
                         ch.pipeline()
-                                .addLast("decoder", adapter.getDecoder())
-                                .addLast("encoder", adapter.getEncoder())
-                                .addLast("server-idle-handler", new IdleStateHandler(0, 0, idleTimeout, MILLISECONDS))
-                                .addLast("handler", nettyServerHandler);
+                                .addLast("decoder", adapter.getDecoder())//解码器handler
+                                .addLast("encoder", adapter.getEncoder())//编码器handler
+                                .addLast("server-idle-handler", new IdleStateHandler(0, 0, idleTimeout, MILLISECONDS))//心跳检查handler
+                                .addLast("handler", nettyServerHandler);//业务handler
                     }
                 });
     }

@@ -24,9 +24,9 @@ import org.apache.dubbo.remoting.Dispatcher;
  * Direct dispatcher
  */
 public class DirectDispatcher implements Dispatcher {
-
+    //线程模型名称
     public static final String NAME = "direct";
-
+    //扩展接口具体实现
     @Override
     public ChannelHandler dispatch(ChannelHandler handler, URL url) {
         return new DirectChannelHandler(handler, url);

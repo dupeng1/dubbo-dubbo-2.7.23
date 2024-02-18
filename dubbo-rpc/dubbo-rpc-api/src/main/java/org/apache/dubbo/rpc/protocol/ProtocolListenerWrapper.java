@@ -42,6 +42,7 @@ import static org.apache.dubbo.common.constants.CommonConstants.INVOKER_LISTENER
 @Activate(order = 200)
 public class ProtocolListenerWrapper implements Protocol {
 
+    //对DubboProtocol进行包装
     private final Protocol protocol;
 
     public ProtocolListenerWrapper(Protocol protocol) {

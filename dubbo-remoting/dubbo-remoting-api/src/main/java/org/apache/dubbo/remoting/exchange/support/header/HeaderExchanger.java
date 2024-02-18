@@ -36,11 +36,15 @@ public class HeaderExchanger implements Exchanger {
 
     @Override
     public ExchangeClient connect(URL url, ExchangeHandler handler) throws RemotingException {
+        //handler是DubboProtocol#requestHandler，被包装了两层
+        //new DecodeHandler(new HeaderExchangeHandler(handler))对应的是Exchange层的包装
         return new HeaderExchangeClient(Transporters.connect(url, new DecodeHandler(new HeaderExchangeHandler(handler))), true);
     }
 
     @Override
     public ExchangeServer bind(URL url, ExchangeHandler handler) throws RemotingException {
+        //handler是DubboProtocol#requestHandler，被包装了两层
+        //new DecodeHandler(new HeaderExchangeHandler(handler))对应的是Exchange层的包装
         return new HeaderExchangeServer(Transporters.bind(url, new DecodeHandler(new HeaderExchangeHandler(handler))));
     }
 

@@ -34,12 +34,12 @@ public class RpcStatus {
 
     private static final ConcurrentMap<String, RpcStatus> SERVICE_STATISTICS = new ConcurrentHashMap<String,
             RpcStatus>();
-
+    //缓存key为服务接口，value为该服务接口中所有方法的一个缓存，其中map的key为具体的方法，value为RpcStatus对象
     private static final ConcurrentMap<String, ConcurrentMap<String, RpcStatus>> METHOD_STATISTICS =
             new ConcurrentHashMap<String, ConcurrentMap<String, RpcStatus>>();
 
     private final ConcurrentMap<String, Object> values = new ConcurrentHashMap<String, Object>();
-
+    //当前激活并发数
     private final AtomicInteger active = new AtomicInteger();
     private final AtomicLong total = new AtomicLong();
     private final AtomicInteger failed = new AtomicInteger();
@@ -74,6 +74,7 @@ public class RpcStatus {
      * @param methodName
      * @return status
      */
+    //获取方法对应的RpcStatus
     public static RpcStatus getStatus(URL url, String methodName) {
         String uri = url.toIdentityString();
         ConcurrentMap<String, RpcStatus> map = METHOD_STATISTICS.computeIfAbsent(uri, k -> new ConcurrentHashMap<>());
@@ -91,6 +92,7 @@ public class RpcStatus {
         }
     }
 
+    //递增方法对应的激活并发数
     public static void beginCount(URL url, String methodName) {
         beginCount(url, methodName, Integer.MAX_VALUE);
     }
@@ -101,10 +103,12 @@ public class RpcStatus {
     public static boolean beginCount(URL url, String methodName, int max) {
         max = (max <= 0) ? Integer.MAX_VALUE : max;
         RpcStatus appStatus = getStatus(url);
+        //获取方法对应的RpcStatus
         RpcStatus methodStatus = getStatus(url, methodName);
         if (methodStatus.active.get() == Integer.MAX_VALUE) {
             return false;
         }
+        //原子性递增方法对应激活并发数，若超过最大限制则返回，否则返回true
         for (int i; ; ) {
             i = methodStatus.active.get();
 
@@ -127,6 +131,7 @@ public class RpcStatus {
      * @param elapsed
      * @param succeeded
      */
+    //原子性的递减方法对应的激活并发数
     public static void endCount(URL url, String methodName, long elapsed, boolean succeeded) {
         endCount(getStatus(url), elapsed, succeeded);
         endCount(getStatus(url, methodName), elapsed, succeeded);
